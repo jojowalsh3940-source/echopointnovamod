@@ -1,9 +1,3 @@
-use crate::memory::{
-    PovCandidate, PawnCandidate, RotationCandidate, MotionEntry, MovingActor,
-    POV_CANDIDATE_COUNT, PAWN_CANDIDATE_COUNT, ROT_CANDIDATE_COUNT,
-    MOVING_ACTOR_COUNT, MOTION_TABLE_SIZE,
-};
-
 pub struct ModState {
     pub esp_enabled: bool,
     pub esp_show_box: bool,
@@ -23,27 +17,10 @@ pub struct ModState {
     pub debug_local_player: usize,
     pub debug_pc: usize,
     pub debug_cm: usize,
-    pub debug_pov_offset: usize,
-    pub debug_pawn_used: usize,
-    pub debug_rot_used: usize,
     pub debug_camera_ok: bool,
     pub debug_camera_loc: [f32; 3],
     pub debug_camera_rot: [f32; 3],
     pub debug_camera_fov: f32,
-    pub debug_pov_candidates: [PovCandidate; POV_CANDIDATE_COUNT],
-    pub debug_pawn_candidates: [PawnCandidate; PAWN_CANDIDATE_COUNT],
-    pub debug_rotation_candidates: [RotationCandidate; ROT_CANDIDATE_COUNT],
-    pub pawn_motion: [f32; PAWN_CANDIDATE_COUNT],
-    pub rotation_motion: [f32; ROT_CANDIDATE_COUNT],
-
-    pub motion_table: [MotionEntry; MOTION_TABLE_SIZE],
-    pub debug_moving_actors: [MovingActor; MOVING_ACTOR_COUNT],
-
-    pub forced_pov_offset: usize,
-    pub forced_pawn_offset: usize,
-    pub forced_rotation_offset: usize,
-    pub forced_pawn_actor: usize,
-    pub esp_fov: f32,
 }
 
 impl ModState {
@@ -67,47 +44,10 @@ impl ModState {
             debug_local_player: 0,
             debug_pc: 0,
             debug_cm: 0,
-            debug_pov_offset: 0,
-            debug_pawn_used: 0,
-            debug_rot_used: 0,
             debug_camera_ok: false,
             debug_camera_loc: [0.0; 3],
             debug_camera_rot: [0.0; 3],
             debug_camera_fov: 0.0,
-            debug_pov_candidates: [PovCandidate {
-                offset: 0,
-                location: [0.0; 3],
-                rotation: [0.0; 3],
-                fov: 0.0,
-            }; POV_CANDIDATE_COUNT],
-            debug_pawn_candidates: [PawnCandidate {
-                offset: 0,
-                ptr: 0,
-                location: [0.0; 3],
-            }; PAWN_CANDIDATE_COUNT],
-            debug_rotation_candidates: [RotationCandidate {
-                offset: 0,
-                rotation: [0.0; 3],
-            }; ROT_CANDIDATE_COUNT],
-            pawn_motion: [0.0; PAWN_CANDIDATE_COUNT],
-            rotation_motion: [0.0; ROT_CANDIDATE_COUNT],
-
-            motion_table: [MotionEntry {
-                actor: 0,
-                prev_loc: [0.0; 3],
-                motion: 0.0,
-            }; MOTION_TABLE_SIZE],
-            debug_moving_actors: [MovingActor {
-                actor: 0,
-                location: [0.0; 3],
-                motion: 0.0,
-            }; MOVING_ACTOR_COUNT],
-
-            forced_pov_offset: 0,
-            forced_pawn_offset: 0,
-            forced_rotation_offset: 0,
-            forced_pawn_actor: 0,
-            esp_fov: 90.0,
         }
     }
 }

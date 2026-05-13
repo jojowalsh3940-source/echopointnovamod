@@ -18,9 +18,6 @@ pub fn render_esp_ui(ui: &Ui, state: &mut ModState) {
     ui.text("Color:");
     ui.color_edit4("##esp_color", &mut state.esp_color);
 
-    ui.text("Camera FOV (tune until boxes align):");
-    ui.slider("##esp_fov", 30.0, 170.0, &mut state.esp_fov);
-
     ui.separator();
     ui.text("World:");
     ui.text(format!("Module:   0x{:X}", state.debug_base_addr));
@@ -33,7 +30,6 @@ pub fn render_esp_ui(ui: &Ui, state: &mut ModState) {
     ui.text("Camera Chain:");
     let red = [1.0, 0.4, 0.4, 1.0];
     let grn = [0.4, 1.0, 0.4, 1.0];
-    let yel = [1.0, 0.9, 0.2, 1.0];
     let line = |ui: &Ui, label: &str, val: usize| {
         let c = if val == 0 { red } else { grn };
         ui.text_colored(c, format!("{} 0x{:X}", label, val));
@@ -43,7 +39,6 @@ pub fn render_esp_ui(ui: &Ui, state: &mut ModState) {
     line(ui, "LocalPlayer: ", state.debug_local_player);
     line(ui, "PlayerCtrl:  ", state.debug_pc);
     line(ui, "CameraMgr:   ", state.debug_cm);
-    ui.text(format!("Active POV:  0x{:X}", state.debug_pov_offset));
 
     ui.separator();
     if state.debug_camera_ok {
@@ -56,112 +51,6 @@ pub fn render_esp_ui(ui: &Ui, state: &mut ModState) {
     ui.text(format!("Rot: {:.1} {:.1} {:.1}",
         state.debug_camera_rot[0], state.debug_camera_rot[1], state.debug_camera_rot[2]));
     ui.text(format!("FOV: {:.1}", state.debug_camera_fov));
-
-    ui.separator();
-    ui.text(format!("Pawn off:    0x{:X}", state.debug_pawn_used));
-    ui.text(format!("Rot off:     0x{:X}", state.debug_rot_used));
-
-    ui.separator();
-    ui.text_colored(yel, "Moving Actors (walk forward — pawn = highest motion):");
-    for i in 0..state.debug_moving_actors.len() {
-        let a = state.debug_moving_actors[i];
-        if a.actor == 0 { continue; }
-        let label = format!(
-            "0x{:X}  loc={:.0},{:.0},{:.0}  motion={:.1}##mact{}",
-            a.actor, a.location[0], a.location[1], a.location[2], a.motion, i
-        );
-        let style = if i == 0 {
-            Some(ui.push_style_color(StyleColor::Button, [0.15, 0.55, 0.15, 1.0]))
-        } else {
-            None
-        };
-        if ui.button(label) {
-            state.forced_pawn_actor = a.actor;
-        }
-        drop(style);
-    }
-    if state.forced_pawn_actor != 0 {
-        ui.text_colored(grn, format!("Actor pinned: 0x{:X}", state.forced_pawn_actor));
-        if ui.button("Unpin Actor##uact") {
-            state.forced_pawn_actor = 0;
-        }
-    }
-
-    ui.separator();
-    ui.text_colored(yel, "Pawn Candidates (move around — highest motion wins):");
-    for i in 0..state.debug_pawn_candidates.len() {
-        let c = state.debug_pawn_candidates[i];
-        if c.offset == 0 { continue; }
-        let m = state.pawn_motion[i];
-        let label = format!(
-            "PC+0x{:X}  loc={:.0},{:.0},{:.0}  motion={:.1}##pawn{}",
-            c.offset, c.location[0], c.location[1], c.location[2], m, i
-        );
-        let style = if m > 1.0 {
-            Some(ui.push_style_color(StyleColor::Button, [0.15, 0.55, 0.15, 1.0]))
-        } else {
-            None
-        };
-        if ui.button(label) {
-            state.forced_pawn_offset = c.offset;
-        }
-        drop(style);
-    }
-    if state.forced_pawn_offset != 0 {
-        ui.text_colored(grn, format!("Pawn pinned: 0x{:X}", state.forced_pawn_offset));
-        if ui.button("Unpin Pawn##upawn") {
-            state.forced_pawn_offset = 0;
-        }
-    }
-
-    ui.separator();
-    ui.text_colored(yel, "Rotation Candidates (look around — highest motion wins):");
-    for i in 0..state.debug_rotation_candidates.len() {
-        let c = state.debug_rotation_candidates[i];
-        if c.offset == 0 { continue; }
-        let m = state.rotation_motion[i];
-        let label = format!(
-            "PC+0x{:X}  rot={:.1},{:.1},{:.1}  motion={:.1}##rot{}",
-            c.offset, c.rotation[0], c.rotation[1], c.rotation[2], m, i
-        );
-        let style = if m > 0.5 {
-            Some(ui.push_style_color(StyleColor::Button, [0.15, 0.55, 0.15, 1.0]))
-        } else {
-            None
-        };
-        if ui.button(label) {
-            state.forced_rotation_offset = c.offset;
-        }
-        drop(style);
-    }
-    if state.forced_rotation_offset != 0 {
-        ui.text_colored(grn, format!("Rot pinned: 0x{:X}", state.forced_rotation_offset));
-        if ui.button("Unpin Rot##urot") {
-            state.forced_rotation_offset = 0;
-        }
-    }
-
-    ui.separator();
-    ui.text_colored(yel, "POV Candidates (fallback, click to pin):");
-    for i in 0..state.debug_pov_candidates.len() {
-        let c = state.debug_pov_candidates[i];
-        if c.offset == 0 {
-            continue;
-        }
-        let label = format!(
-            "0x{:X}  fov={:.1}  loc={:.0},{:.0},{:.0}##cand{}",
-            c.offset, c.fov, c.location[0], c.location[1], c.location[2], i
-        );
-        if ui.button(label) {
-            state.forced_pov_offset = c.offset;
-        }
-    }
-    if state.forced_pov_offset != 0 {
-        ui.text_colored(grn, format!("POV pinned: 0x{:X}", state.forced_pov_offset));
-        if ui.button("Unpin POV##unpin") {
-            state.forced_pov_offset = 0;
-        }
-    }
 }
 
 fn build_axes(rotation: [f32; 3]) -> ([f32; 3], [f32; 3], [f32; 3]) {
@@ -234,70 +123,23 @@ pub fn draw_esp(ui: &Ui, state: &mut ModState) {
     state.debug_actor_count = actors.count;
     state.debug_visible_actors = 0;
 
-    memory::update_motion_table(&mut state.motion_table, &actors);
-    state.debug_moving_actors = memory::top_moving_actors(&state.motion_table);
-
-    let camera = memory::get_camera_chain(
-        world,
-        &actors,
-        state.forced_pov_offset,
-        state.forced_pawn_offset,
-        state.forced_rotation_offset,
-        state.forced_pawn_actor,
-        state.esp_fov,
-    );
+    let camera = memory::get_camera_chain(world);
     state.debug_gi = camera.gi;
     state.debug_lp_array = camera.lp_array;
     state.debug_local_player = camera.local_player;
     state.debug_pc = camera.pc;
     state.debug_cm = camera.cm;
-    state.debug_pov_offset = camera.pov_offset;
-    state.debug_pawn_used = camera.pawn_used;
-    state.debug_rot_used = camera.rot_used;
     state.debug_camera_ok = camera.ok;
     state.debug_camera_loc = camera.location;
     state.debug_camera_rot = camera.rotation;
     state.debug_camera_fov = camera.fov;
-    state.debug_pov_candidates = camera.candidates;
-
-    for i in 0..state.debug_pawn_candidates.len() {
-        let cur = camera.pawn_candidates[i];
-        let mut delta = 0.0f32;
-        if cur.offset != 0 {
-            if let Some(p) = state.debug_pawn_candidates.iter().find(|p| p.offset == cur.offset) {
-                delta = (cur.location[0] - p.location[0]).abs()
-                      + (cur.location[1] - p.location[1]).abs()
-                      + (cur.location[2] - p.location[2]).abs();
-                if !delta.is_finite() { delta = 0.0; }
-            }
-        }
-        state.pawn_motion[i] = state.pawn_motion[i] * 0.92 + delta;
-    }
-    for i in 0..state.debug_rotation_candidates.len() {
-        let cur = camera.rotation_candidates[i];
-        let mut delta = 0.0f32;
-        if cur.offset != 0 {
-            if let Some(p) = state.debug_rotation_candidates.iter().find(|p| p.offset == cur.offset) {
-                delta = (cur.rotation[0] - p.rotation[0]).abs()
-                      + (cur.rotation[1] - p.rotation[1]).abs()
-                      + (cur.rotation[2] - p.rotation[2]).abs();
-                if !delta.is_finite() { delta = 0.0; }
-            }
-        }
-        state.rotation_motion[i] = state.rotation_motion[i] * 0.92 + delta;
-    }
-
-    state.debug_pawn_candidates = camera.pawn_candidates;
-    state.debug_rotation_candidates = camera.rotation_candidates;
 
     if !state.esp_enabled {
         return;
     }
-
     if !camera.ok {
         return;
     }
-
     if actors.count <= 0 || actors.data == 0 {
         return;
     }
