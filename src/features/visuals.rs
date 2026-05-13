@@ -95,37 +95,65 @@ pub fn render_esp_ui(ui: &Ui, state: &mut ModState) {
         state.selected_classes = [0; crate::memory::SELECTED_CLASS_COUNT];
     }
 
-    ui.text("Top Classes (click to toggle):");
-    for i in 0..state.class_groups.len() {
-        let g = state.class_groups[i];
-        if g.class_ptr == 0 { continue; }
-        let selected = state.selected_classes.iter().any(|&c| c == g.class_ptr);
-        let mark = if selected { "[X]" } else { "[ ]" };
-        let player_mark = if g.class_ptr == state.debug_player_class { " (player)" } else { "" };
-        let label = format!(
-            "{} 0x{:X}  n={}  loc={:.0},{:.0},{:.0}{}##cls{}",
-            mark, g.class_ptr, g.count,
-            g.sample_loc[0], g.sample_loc[1], g.sample_loc[2],
-            player_mark, i
-        );
-        let style = if selected {
-            Some(ui.push_style_color(StyleColor::Button, [0.15, 0.55, 0.15, 1.0]))
-        } else {
-            None
-        };
-        if ui.button(label) {
-            if selected {
-                for c in state.selected_classes.iter_mut() {
-                    if *c == g.class_ptr { *c = 0; }
-                }
-            } else {
-                for c in state.selected_classes.iter_mut() {
-                    if *c == 0 { *c = g.class_ptr; break; }
-                }
-            }
+    ui.text("Count range (hide bulky props like clouds / voxels):");
+    ui.slider("##cls_min", 1, 500, &mut state.class_min_count);
+    ui.same_line();
+    ui.text("min");
+    ui.slider("##cls_max", 1, 2000, &mut state.class_max_count);
+    ui.same_line();
+    ui.text("max");
+
+    let mut visible_count = 0i32;
+    for g in state.class_groups.iter() {
+        if g.class_ptr != 0
+            && g.count >= state.class_min_count
+            && g.count <= state.class_max_count
+        {
+            visible_count += 1;
         }
-        drop(style);
     }
+    ui.text(format!(
+        "Top Classes (showing {} of up to {} — click to toggle):",
+        visible_count, state.class_groups.len()
+    ));
+
+    ui.child_window("##classlist")
+        .size([0.0, 240.0])
+        .build(|| {
+            for i in 0..state.class_groups.len() {
+                let g = state.class_groups[i];
+                if g.class_ptr == 0 { continue; }
+                if g.count < state.class_min_count || g.count > state.class_max_count {
+                    continue;
+                }
+                let selected = state.selected_classes.iter().any(|&c| c == g.class_ptr);
+                let mark = if selected { "[X]" } else { "[ ]" };
+                let player_mark = if g.class_ptr == state.debug_player_class { " (player)" } else { "" };
+                let label = format!(
+                    "{} 0x{:X}  n={}  loc={:.0},{:.0},{:.0}{}##cls{}",
+                    mark, g.class_ptr, g.count,
+                    g.sample_loc[0], g.sample_loc[1], g.sample_loc[2],
+                    player_mark, i
+                );
+                let style = if selected {
+                    Some(ui.push_style_color(StyleColor::Button, [0.15, 0.55, 0.15, 1.0]))
+                } else {
+                    None
+                };
+                if ui.button(label) {
+                    if selected {
+                        for c in state.selected_classes.iter_mut() {
+                            if *c == g.class_ptr { *c = 0; }
+                        }
+                    } else {
+                        for c in state.selected_classes.iter_mut() {
+                            if *c == 0 { *c = g.class_ptr; break; }
+                        }
+                    }
+                }
+                drop(style);
+            }
+        });
 }
 
 fn build_axes(rotation: [f32; 3]) -> ([f32; 3], [f32; 3], [f32; 3]) {

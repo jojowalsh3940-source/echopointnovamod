@@ -23,7 +23,7 @@ pub const CAMERA_CACHE_POV_OFFSET: usize = 0x10;
 pub const UOBJECT_CLASS_OFFSET: usize = 0x10;
 pub const CONTROLLER_PAWN_OFFSET: usize = 0x250;
 
-pub const CLASS_GROUP_COUNT: usize = 16;
+pub const CLASS_GROUP_COUNT: usize = 64;
 pub const SELECTED_CLASS_COUNT: usize = 8;
 
 pub fn get_module_base() -> usize {

@@ -30,6 +30,8 @@ pub struct ModState {
     pub class_groups: [crate::memory::ClassGroup; crate::memory::CLASS_GROUP_COUNT],
     pub selected_classes: [usize; crate::memory::SELECTED_CLASS_COUNT],
     pub debug_player_class: usize,
+    pub class_min_count: i32,
+    pub class_max_count: i32,
 }
 
 impl ModState {
@@ -70,6 +72,8 @@ impl ModState {
             }; crate::memory::CLASS_GROUP_COUNT],
             selected_classes: [0; crate::memory::SELECTED_CLASS_COUNT],
             debug_player_class: 0,
+            class_min_count: 1,
+            class_max_count: 100,
         }
     }
 }
