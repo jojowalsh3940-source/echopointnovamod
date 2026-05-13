@@ -32,6 +32,8 @@ pub struct ModState {
     pub debug_pov_candidates: [PovCandidate; POV_CANDIDATE_COUNT],
     pub debug_pawn_candidates: [PawnCandidate; PAWN_CANDIDATE_COUNT],
     pub debug_rotation_candidates: [RotationCandidate; ROT_CANDIDATE_COUNT],
+    pub pawn_motion: [f32; PAWN_CANDIDATE_COUNT],
+    pub rotation_motion: [f32; ROT_CANDIDATE_COUNT],
 
     pub forced_pov_offset: usize,
     pub forced_pawn_offset: usize,
@@ -81,6 +83,8 @@ impl ModState {
                 offset: 0,
                 rotation: [0.0; 3],
             }; ROT_CANDIDATE_COUNT],
+            pawn_motion: [0.0; PAWN_CANDIDATE_COUNT],
+            rotation_motion: [0.0; ROT_CANDIDATE_COUNT],
 
             forced_pov_offset: 0,
             forced_pawn_offset: 0,

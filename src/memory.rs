@@ -18,8 +18,8 @@ pub const PLAYER_CONTROLLER_OFFSET: usize = 0x30;
 pub const CAMERA_MANAGER_OFFSET: usize = 0x348;
 
 pub const POV_CANDIDATE_COUNT: usize = 6;
-pub const PAWN_CANDIDATE_COUNT: usize = 8;
-pub const ROT_CANDIDATE_COUNT: usize = 8;
+pub const PAWN_CANDIDATE_COUNT: usize = 12;
+pub const ROT_CANDIDATE_COUNT: usize = 16;
 pub const EYE_HEIGHT_CM: f32 = 64.0;
 
 pub fn get_module_base() -> usize {
@@ -188,36 +188,47 @@ pub struct RotationCandidate {
 
 pub fn scan_pawn_candidates(pc: usize, actors: &ActorArray) -> [PawnCandidate; PAWN_CANDIDATE_COUNT] {
     let mut out = [PawnCandidate::default(); PAWN_CANDIDATE_COUNT];
-    if pc == 0 || actors.data == 0 || actors.count <= 0 { return out; }
+    if pc == 0 { return out; }
 
-    let cap = actors.count.min(50_000) as usize;
-    let mut actor_set: Vec<usize> = Vec::with_capacity(cap);
-    for i in 0..actors.count.min(50_000) {
-        let a = get_actor(actors, i);
-        if a != 0 { actor_set.push(a); }
+    let mut actor_set: Vec<usize> = Vec::new();
+    if actors.data != 0 && actors.count > 0 {
+        let cap = actors.count.min(50_000) as usize;
+        actor_set.reserve(cap);
+        for i in 0..actors.count.min(50_000) {
+            let a = get_actor(actors, i);
+            if a != 0 { actor_set.push(a); }
+        }
+        actor_set.sort_unstable();
+        actor_set.dedup();
     }
-    actor_set.sort_unstable();
-    actor_set.dedup();
 
-    let mut found: Vec<PawnCandidate> = Vec::with_capacity(16);
-    let mut off = 0xC0usize;
-    while off < 0x600 {
+    let mut in_array: Vec<PawnCandidate> = Vec::with_capacity(8);
+    let mut other: Vec<PawnCandidate> = Vec::with_capacity(8);
+    let mut off = 0x10usize;
+    while off < 0x800 {
         let ptr = safe_read_ptr(pc + off);
-        if ptr != 0 && actor_set.binary_search(&ptr).is_ok() {
+        if ptr != 0 {
             if let Some(loc) = get_actor_location(ptr) {
                 if loc[0].abs() + loc[1].abs() + loc[2].abs() > 1.0
                     && loc[0].abs() < 1.0e7 && loc[1].abs() < 1.0e7 && loc[2].abs() < 1.0e7
-                    && !found.iter().any(|c| c.offset == off)
                 {
-                    found.push(PawnCandidate { offset: off, ptr, location: loc });
-                    if found.len() >= PAWN_CANDIDATE_COUNT { break; }
+                    let cand = PawnCandidate { offset: off, ptr, location: loc };
+                    if !actor_set.is_empty() && actor_set.binary_search(&ptr).is_ok() {
+                        if !in_array.iter().any(|c| c.ptr == ptr) {
+                            in_array.push(cand);
+                        }
+                    } else if !other.iter().any(|c| c.ptr == ptr) {
+                        other.push(cand);
+                    }
                 }
             }
         }
         off += 8;
     }
 
-    for (i, c) in found.iter().take(PAWN_CANDIDATE_COUNT).enumerate() {
+    let mut all = in_array;
+    all.extend(other);
+    for (i, c) in all.iter().take(PAWN_CANDIDATE_COUNT).enumerate() {
         out[i] = *c;
     }
     out
@@ -227,17 +238,16 @@ pub fn scan_rotation_candidates(pc: usize) -> [RotationCandidate; ROT_CANDIDATE_
     let mut out = [RotationCandidate::default(); ROT_CANDIDATE_COUNT];
     if pc == 0 { return out; }
 
-    let mut found: Vec<RotationCandidate> = Vec::with_capacity(16);
-    let mut off = 0x100usize;
-    while off < 0x500 {
+    let mut found: Vec<RotationCandidate> = Vec::with_capacity(32);
+    let mut off = 0x10usize;
+    while off < 0x800 {
         if let Some(rot) = safe_read_vec3(pc + off) {
             let pitch_ok = rot[0] >= -89.0 && rot[0] <= 89.0;
             let yaw_ok = rot[1].abs() <= 360.0;
             let roll_ok = rot[2].abs() <= 30.0;
-            let nonzero = rot[0].abs() + rot[1].abs() > 0.5;
+            let nonzero = rot[0].abs() + rot[1].abs() + rot[2].abs() > 0.01;
             if pitch_ok && yaw_ok && roll_ok && nonzero {
                 found.push(RotationCandidate { offset: off, rotation: rot });
-                if found.len() >= ROT_CANDIDATE_COUNT { break; }
             }
         }
         off += 4;

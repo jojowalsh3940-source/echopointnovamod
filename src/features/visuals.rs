@@ -59,17 +59,24 @@ pub fn render_esp_ui(ui: &Ui, state: &mut ModState) {
     ui.text(format!("Rot off:     0x{:X}", state.debug_rot_used));
 
     ui.separator();
-    ui.text_colored(yel, "Pawn Candidates (click to pin):");
+    ui.text_colored(yel, "Pawn Candidates (move around — highest motion wins):");
     for i in 0..state.debug_pawn_candidates.len() {
         let c = state.debug_pawn_candidates[i];
         if c.offset == 0 { continue; }
+        let m = state.pawn_motion[i];
         let label = format!(
-            "PC+0x{:X}  loc={:.0},{:.0},{:.0}##pawn{}",
-            c.offset, c.location[0], c.location[1], c.location[2], i
+            "PC+0x{:X}  loc={:.0},{:.0},{:.0}  motion={:.1}##pawn{}",
+            c.offset, c.location[0], c.location[1], c.location[2], m, i
         );
+        let style = if m > 1.0 {
+            Some(ui.push_style_color(StyleColor::Button, [0.15, 0.55, 0.15, 1.0]))
+        } else {
+            None
+        };
         if ui.button(label) {
             state.forced_pawn_offset = c.offset;
         }
+        drop(style);
     }
     if state.forced_pawn_offset != 0 {
         ui.text_colored(grn, format!("Pawn pinned: 0x{:X}", state.forced_pawn_offset));
@@ -79,17 +86,24 @@ pub fn render_esp_ui(ui: &Ui, state: &mut ModState) {
     }
 
     ui.separator();
-    ui.text_colored(yel, "Rotation Candidates (click to pin):");
+    ui.text_colored(yel, "Rotation Candidates (look around — highest motion wins):");
     for i in 0..state.debug_rotation_candidates.len() {
         let c = state.debug_rotation_candidates[i];
         if c.offset == 0 { continue; }
+        let m = state.rotation_motion[i];
         let label = format!(
-            "PC+0x{:X}  rot={:.1},{:.1},{:.1}##rot{}",
-            c.offset, c.rotation[0], c.rotation[1], c.rotation[2], i
+            "PC+0x{:X}  rot={:.1},{:.1},{:.1}  motion={:.1}##rot{}",
+            c.offset, c.rotation[0], c.rotation[1], c.rotation[2], m, i
         );
+        let style = if m > 0.5 {
+            Some(ui.push_style_color(StyleColor::Button, [0.15, 0.55, 0.15, 1.0]))
+        } else {
+            None
+        };
         if ui.button(label) {
             state.forced_rotation_offset = c.offset;
         }
+        drop(style);
     }
     if state.forced_rotation_offset != 0 {
         ui.text_colored(grn, format!("Rot pinned: 0x{:X}", state.forced_rotation_offset));
@@ -211,6 +225,34 @@ pub fn draw_esp(ui: &Ui, state: &mut ModState) {
     state.debug_camera_rot = camera.rotation;
     state.debug_camera_fov = camera.fov;
     state.debug_pov_candidates = camera.candidates;
+
+    for i in 0..state.debug_pawn_candidates.len() {
+        let cur = camera.pawn_candidates[i];
+        let mut delta = 0.0f32;
+        if cur.offset != 0 {
+            if let Some(p) = state.debug_pawn_candidates.iter().find(|p| p.offset == cur.offset) {
+                delta = (cur.location[0] - p.location[0]).abs()
+                      + (cur.location[1] - p.location[1]).abs()
+                      + (cur.location[2] - p.location[2]).abs();
+                if !delta.is_finite() { delta = 0.0; }
+            }
+        }
+        state.pawn_motion[i] = state.pawn_motion[i] * 0.92 + delta;
+    }
+    for i in 0..state.debug_rotation_candidates.len() {
+        let cur = camera.rotation_candidates[i];
+        let mut delta = 0.0f32;
+        if cur.offset != 0 {
+            if let Some(p) = state.debug_rotation_candidates.iter().find(|p| p.offset == cur.offset) {
+                delta = (cur.rotation[0] - p.rotation[0]).abs()
+                      + (cur.rotation[1] - p.rotation[1]).abs()
+                      + (cur.rotation[2] - p.rotation[2]).abs();
+                if !delta.is_finite() { delta = 0.0; }
+            }
+        }
+        state.rotation_motion[i] = state.rotation_motion[i] * 0.92 + delta;
+    }
+
     state.debug_pawn_candidates = camera.pawn_candidates;
     state.debug_rotation_candidates = camera.rotation_candidates;
 
