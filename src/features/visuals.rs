@@ -42,6 +42,10 @@ pub fn render_esp_ui(ui: &Ui, state: &mut ModState) {
     }
 }
 
+fn is_sane(v: f32) -> bool {
+    v.is_finite() && v.abs() < 1.0e7
+}
+
 pub fn draw_esp(ui: &Ui, state: &mut ModState) {
     let base = memory::get_module_base();
     state.debug_base_addr = base;
@@ -65,6 +69,9 @@ pub fn draw_esp(ui: &Ui, state: &mut ModState) {
 
     let draw_list = ui.get_background_draw_list();
     let [screen_w, screen_h] = ui.io().display_size;
+    if !is_sane(screen_w) || !is_sane(screen_h) || screen_w < 1.0 || screen_h < 1.0 {
+        return;
+    }
     let color = state.esp_color;
 
     for i in 0..actors.count {
@@ -78,8 +85,16 @@ pub fn draw_esp(ui: &Ui, state: &mut ModState) {
             None => continue,
         };
 
+        if !is_sane(loc[0]) || !is_sane(loc[1]) || !is_sane(loc[2]) {
+            continue;
+        }
+
         let screen_x = screen_w * 0.5 + (loc[0] * 0.01);
         let screen_y = screen_h * 0.5 - (loc[2] * 0.01);
+
+        if !is_sane(screen_x) || !is_sane(screen_y) {
+            continue;
+        }
 
         if screen_x < 0.0 || screen_x > screen_w || screen_y < 0.0 || screen_y > screen_h {
             continue;
@@ -97,7 +112,14 @@ pub fn draw_esp(ui: &Ui, state: &mut ModState) {
         }
 
         if state.esp_show_distance {
-            let dist = (loc[0] * loc[0] + loc[1] * loc[1] + loc[2] * loc[2]).sqrt() * 0.01;
+            let dist_sq = loc[0] * loc[0] + loc[1] * loc[1] + loc[2] * loc[2];
+            if !is_sane(dist_sq) {
+                continue;
+            }
+            let dist = dist_sq.sqrt() * 0.01;
+            if !is_sane(dist) {
+                continue;
+            }
             draw_list.add_text(
                 [screen_x - 20.0, screen_y + 32.0],
                 color,
