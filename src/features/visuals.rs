@@ -1,6 +1,6 @@
 use hudhook::imgui::*;
 use crate::state::ModState;
-use crate::memory::{self, CameraView};
+use crate::memory::{self, CameraChain};
 
 pub fn render_esp_ui(ui: &Ui, state: &mut ModState) {
     ui.text("ESP Settings");
@@ -19,7 +19,7 @@ pub fn render_esp_ui(ui: &Ui, state: &mut ModState) {
     ui.color_edit4("##esp_color", &mut state.esp_color);
 
     ui.separator();
-    ui.text("Debug Info:");
+    ui.text("World:");
     ui.text(format!("Module:   0x{:X}", state.debug_base_addr));
     ui.text(format!("GWorld:   0x{:X}", state.debug_world_addr));
     ui.text(format!("Level:    0x{:X}", state.debug_level_addr));
@@ -27,10 +27,25 @@ pub fn render_esp_ui(ui: &Ui, state: &mut ModState) {
     ui.text(format!("Visible:  {}", state.debug_visible_actors));
 
     ui.separator();
+    ui.text("Camera Chain:");
+    let red = [1.0, 0.4, 0.4, 1.0];
+    let grn = [0.4, 1.0, 0.4, 1.0];
+    let line = |ui: &Ui, label: &str, val: usize| {
+        let c = if val == 0 { red } else { grn };
+        ui.text_colored(c, format!("{} 0x{:X}", label, val));
+    };
+    line(ui, "GameInstance: ", state.debug_gi);
+    line(ui, "LPArray data: ", state.debug_lp_array);
+    line(ui, "LocalPlayer:  ", state.debug_local_player);
+    line(ui, "PlayerCtrl:   ", state.debug_pc);
+    line(ui, "CameraMgr:    ", state.debug_cm);
+    ui.text(format!("POV offset:   0x{:X}", state.debug_pov_offset));
+
+    ui.separator();
     if state.debug_camera_ok {
-        ui.text_colored([0.0, 1.0, 0.0, 1.0], "Camera: OK");
+        ui.text_colored(grn, "Camera: OK");
     } else {
-        ui.text_colored([1.0, 0.4, 0.4, 1.0], "Camera: NOT FOUND");
+        ui.text_colored(red, "Camera: NOT FOUND");
     }
     ui.text(format!("Loc: {:.0} {:.0} {:.0}",
         state.debug_camera_loc[0], state.debug_camera_loc[1], state.debug_camera_loc[2]));
@@ -65,7 +80,7 @@ fn build_axes(rotation: [f32; 3]) -> ([f32; 3], [f32; 3], [f32; 3]) {
     (forward, right, up)
 }
 
-fn world_to_screen(world_pos: [f32; 3], camera: &CameraView, screen_size: [f32; 2]) -> Option<[f32; 2]> {
+fn world_to_screen(world_pos: [f32; 3], camera: &CameraChain, screen_size: [f32; 2]) -> Option<[f32; 2]> {
     let (forward, right, up) = build_axes(camera.rotation);
 
     let dx = world_pos[0] - camera.location[0];
@@ -104,15 +119,17 @@ pub fn draw_esp(ui: &Ui, state: &mut ModState) {
     let world = memory::get_gworld(base);
     state.debug_world_addr = world;
 
-    let camera_opt = memory::get_camera(world);
-    if let Some(ref cam) = camera_opt {
-        state.debug_camera_ok = true;
-        state.debug_camera_loc = cam.location;
-        state.debug_camera_rot = cam.rotation;
-        state.debug_camera_fov = cam.fov;
-    } else {
-        state.debug_camera_ok = false;
-    }
+    let camera = memory::get_camera_chain(world);
+    state.debug_gi = camera.gi;
+    state.debug_lp_array = camera.lp_array;
+    state.debug_local_player = camera.local_player;
+    state.debug_pc = camera.pc;
+    state.debug_cm = camera.cm;
+    state.debug_pov_offset = camera.pov_offset;
+    state.debug_camera_ok = camera.ok;
+    state.debug_camera_loc = camera.location;
+    state.debug_camera_rot = camera.rotation;
+    state.debug_camera_fov = camera.fov;
 
     if !state.esp_enabled {
         return;
@@ -123,10 +140,9 @@ pub fn draw_esp(ui: &Ui, state: &mut ModState) {
     state.debug_actor_count = actors.count;
     state.debug_visible_actors = 0;
 
-    let camera = match camera_opt {
-        Some(c) => c,
-        None => return,
-    };
+    if !camera.ok {
+        return;
+    }
 
     if actors.count <= 0 || actors.data == 0 {
         return;
@@ -172,7 +188,7 @@ pub fn draw_esp(ui: &Ui, state: &mut ModState) {
         visible += 1;
 
         if state.esp_show_box {
-            let height = 1500.0 / dist;
+            let height = (1500.0 / dist).clamp(4.0, 200.0);
             let width = height * 0.5;
             draw_list
                 .add_rect(
