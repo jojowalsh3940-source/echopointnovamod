@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-hudhook = { version = "0.8", features = ["dx11"] }
+hudhook = { version = "0.8", features = ["dx12"] }
 windows = { version = "0.58", features = [
     "Win32_System_Console",
     "Win32_System_LibraryLoader",

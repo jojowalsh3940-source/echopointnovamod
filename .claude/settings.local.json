@@ -8,7 +8,11 @@
       "Bash(cargo tree *)",
       "WebSearch",
       "WebFetch(domain:veeenu.github.io)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(dir target\\\\release\\\\*.dll)",
+      "Bash(git remote *)",
+      "Bash(git push *)"
     ]
   }
 }

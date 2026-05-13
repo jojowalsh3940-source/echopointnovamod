@@ -4,7 +4,7 @@ mod gui;
 mod features;
 
 use hudhook::*;
-use hudhook::hooks::dx11::ImguiDx11Hooks;
+use hudhook::hooks::dx12::ImguiDx12Hooks;
 use std::sync::Mutex;
 
 static MOD_STATE: Mutex<state::ModState> = Mutex::new(state::ModState::new());
@@ -18,4 +18,4 @@ impl ImguiRenderLoop for ModRenderLoop {
     }
 }
 
-hudhook!(ImguiDx11Hooks, ModRenderLoop);
+hudhook!(ImguiDx12Hooks, ModRenderLoop);
