@@ -1,3 +1,4 @@
+use std::sync::Mutex;
 use windows::core::PCSTR;
 use windows::Win32::System::LibraryLoader::GetModuleHandleA;
 use windows::Win32::System::Memory::{
@@ -44,10 +45,73 @@ pub fn get_module_base() -> usize {
     }
 }
 
+const REGION_CACHE_SIZE: usize = 32;
+
+#[derive(Clone, Copy)]
+struct ValidRegion {
+    base: usize,
+    end: usize,
+}
+
+struct RegionCache {
+    entries: [ValidRegion; REGION_CACHE_SIZE],
+    used: usize,
+    next_slot: usize,
+}
+
+impl RegionCache {
+    const fn new() -> Self {
+        Self {
+            entries: [ValidRegion { base: 0, end: 0 }; REGION_CACHE_SIZE],
+            used: 0,
+            next_slot: 0,
+        }
+    }
+
+    fn clear(&mut self) {
+        self.used = 0;
+        self.next_slot = 0;
+    }
+
+    fn contains(&self, addr: usize, end: usize) -> bool {
+        for i in 0..self.used {
+            let r = self.entries[i];
+            if addr >= r.base && end <= r.end {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn insert(&mut self, base: usize, end: usize) {
+        self.entries[self.next_slot] = ValidRegion { base, end };
+        self.next_slot = (self.next_slot + 1) % REGION_CACHE_SIZE;
+        if self.used < REGION_CACHE_SIZE {
+            self.used += 1;
+        }
+    }
+}
+
+static REGION_CACHE: Mutex<RegionCache> = Mutex::new(RegionCache::new());
+
+pub fn clear_region_cache() {
+    if let Ok(mut c) = REGION_CACHE.lock() {
+        c.clear();
+    }
+}
+
 fn is_readable(addr: usize, size: usize) -> bool {
     if addr < 0x10000 || addr > 0x7FFF_FFFF_FFFF {
         return false;
     }
+    let end = addr.saturating_add(size);
+
+    if let Ok(cache) = REGION_CACHE.lock() {
+        if cache.contains(addr, end) {
+            return true;
+        }
+    }
+
     unsafe {
         let mut mbi: MEMORY_BASIC_INFORMATION = std::mem::zeroed();
         let written = VirtualQuery(
@@ -62,11 +126,14 @@ fn is_readable(addr: usize, size: usize) -> bool {
         if mbi.Protect.0 & bad != 0 {
             return false;
         }
-        let region_end = (mbi.BaseAddress as usize).saturating_add(mbi.RegionSize);
-        if addr.saturating_add(size) > region_end {
-            return false;
+        let region_base = mbi.BaseAddress as usize;
+        let region_end = region_base.saturating_add(mbi.RegionSize);
+
+        if let Ok(mut c) = REGION_CACHE.lock() {
+            c.insert(region_base, region_end);
         }
-        true
+
+        end <= region_end
     }
 }
 
@@ -122,11 +189,17 @@ pub fn get_actors(world: usize) -> (usize, ActorArray) {
     (level, ActorArray { data, count })
 }
 
-pub fn get_actor(array: &ActorArray, index: i32) -> usize {
-    if array.data == 0 || index < 0 || index >= array.count {
-        return 0;
+pub fn actor_slice(array: &ActorArray) -> &[usize] {
+    if array.data == 0 || array.count <= 0 {
+        return &[];
     }
-    safe_read_ptr(array.data + (index as usize * 8))
+    let bytes = (array.count as usize).saturating_mul(8);
+    if !is_readable(array.data, bytes) {
+        return &[];
+    }
+    unsafe {
+        std::slice::from_raw_parts(array.data as *const usize, array.count as usize)
+    }
 }
 
 pub fn get_actor_location(actor: usize) -> Option<[f32; 3]> {

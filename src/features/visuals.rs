@@ -279,6 +279,8 @@ fn project(view: &ProjView, world_pos: [f32; 3]) -> Option<([f32; 2], f32)> {
 }
 
 pub fn draw_esp(ui: &Ui, state: &mut ModState) {
+    memory::clear_region_cache();
+
     let base = memory::get_module_base();
     state.debug_base_addr = base;
 
@@ -351,8 +353,8 @@ pub fn draw_esp(ui: &Ui, state: &mut ModState) {
     let mut class_cache: std::collections::HashMap<usize, ClassMeta> =
         std::collections::HashMap::with_capacity(128);
 
-    for i in 0..actors.count {
-        let actor = memory::get_actor(&actors, i);
+    let actor_ptrs = memory::actor_slice(&actors);
+    for &actor in actor_ptrs {
         if actor == 0 { continue; }
 
         let class_ptr = memory::get_actor_class(actor);
