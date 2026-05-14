@@ -1,4 +1,5 @@
-use std::sync::Mutex;
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 use windows::core::PCSTR;
 use windows::Win32::System::LibraryLoader::GetModuleHandleA;
 use windows::Win32::System::Memory::{
@@ -35,9 +36,10 @@ pub const HUMAN_HP_OFFSET: usize = 0xDEC;       // int32 MyHP
 
 // ACharacter::Mesh -> USkeletalMeshComponent* (inherited by both human + mech chains)
 pub const CHARACTER_MESH_OFFSET: usize = 0x280;
-// USkinnedMeshComponent: bRecentlyRendered is bit 6 of the byte at 0x607
-pub const SKINNED_MESH_RENDERED_BYTE: usize = 0x607;
-pub const RECENTLY_RENDERED_BIT: u8 = 0x40;
+// UPrimitiveComponent::LastRenderTime — engine writes World.TimeSeconds each render
+// (Transient in UE source; Dumper-7 omits it, but the offset is in the 16-byte gap
+//  between BoundsScale@0x284 and MoveIgnoreActors@0x298 per UE 4.27 layout.)
+pub const PRIMITIVE_LAST_RENDER_TIME: usize = 0x288;
 
 pub const CLASS_GROUP_COUNT: usize = 64;
 pub const SELECTED_CLASS_COUNT: usize = 8;
@@ -293,14 +295,55 @@ pub fn is_enemy_class_name(name: &str) -> bool {
     classify_enemy(name) != EnemyKind::None
 }
 
+struct VisCache {
+    current: HashMap<usize, f32>,
+    previous: HashMap<usize, f32>,
+}
+
+impl VisCache {
+    fn new() -> Self {
+        Self {
+            current: HashMap::new(),
+            previous: HashMap::new(),
+        }
+    }
+
+    fn step(&mut self) {
+        std::mem::swap(&mut self.previous, &mut self.current);
+        self.current.clear();
+    }
+}
+
+static VIS_CACHE: OnceLock<Mutex<VisCache>> = OnceLock::new();
+
+fn vis_cache() -> &'static Mutex<VisCache> {
+    VIS_CACHE.get_or_init(|| Mutex::new(VisCache::new()))
+}
+
+pub fn step_vis_cache() {
+    if let Ok(mut c) = vis_cache().lock() {
+        c.step();
+    }
+}
+
 pub fn is_actor_visible(actor: usize) -> bool {
     if actor == 0 { return false; }
     let mesh = safe_read_ptr(actor + CHARACTER_MESH_OFFSET);
     if mesh == 0 { return true; }
-    let addr = mesh + SKINNED_MESH_RENDERED_BYTE;
-    if !is_readable(addr, 1) { return true; }
-    let b = unsafe { *(addr as *const u8) };
-    (b & RECENTLY_RENDERED_BIT) != 0
+    let current = match safe_read_f32(mesh + PRIMITIVE_LAST_RENDER_TIME) {
+        Some(v) if v >= 0.0 && v < 1_000_000.0 => v,
+        _ => return true,
+    };
+
+    if let Ok(mut cache) = vis_cache().lock() {
+        cache.current.insert(actor, current);
+        match cache.previous.get(&actor) {
+            None => true,
+            Some(&prev) => current != prev,
+        }
+    } else {
+        true
+    }
 }
 
 pub fn is_actor_alive(actor: usize, kind: EnemyKind) -> bool {

@@ -281,6 +281,7 @@ fn project(view: &ProjView, world_pos: [f32; 3]) -> Option<([f32; 2], f32)> {
 
 pub fn draw_esp(ui: &Ui, state: &mut ModState) {
     memory::clear_region_cache();
+    memory::step_vis_cache();
 
     let base = memory::get_module_base();
     state.debug_base_addr = base;

@@ -48,8 +48,8 @@ impl ModState {
             esp_show_distance: false,
             esp_max_distance: 200.0,
             esp_min_distance: 2.0,
-            esp_color_visible: [1.0, 0.0, 0.0, 1.0],
-            esp_color_invisible: [1.0, 1.0, 0.0, 1.0],
+            esp_color_visible: [0.0, 1.0, 0.2, 1.0],
+            esp_color_invisible: [1.0, 0.0, 0.0, 1.0],
 
             debug_actor_count: 0,
             debug_world_addr: 0,
