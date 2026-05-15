@@ -9,8 +9,19 @@ pub fn render_ui(ui: &Ui, state: &mut ModState) {
         .size([400.0, 500.0], Condition::FirstUseEver)
         .position([width / 2.0 - 200.0, height / 2.0 - 250.0], Condition::FirstUseEver)
         .build(|| {
-            features::visuals::render_esp_ui(ui, state);
+            if let Some(_tabs) = ui.tab_bar("##main_tabs") {
+                if let Some(_t) = ui.tab_item("Main") {
+                    features::visuals::render_main_tab(ui, state);
+                }
+                if let Some(_t) = ui.tab_item("Debug") {
+                    features::debug::render_debug_tab(ui, state);
+                }
+                if let Some(_t) = ui.tab_item("Misc") {
+                    features::misc::render_misc_tab(ui, state);
+                }
+            }
         });
 
     features::visuals::draw_esp(ui, state);
+    features::misc::tick(state);
 }
