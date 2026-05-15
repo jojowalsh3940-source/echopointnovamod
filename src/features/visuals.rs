@@ -136,35 +136,53 @@ fn render_debug_tab(ui: &Ui, state: &mut ModState) {
     ui.same_line();
     ui.text("max");
 
-    let mut visible_count = 0i32;
-    for g in state.class_groups.iter() {
-        if g.class_ptr != 0
-            && g.count >= state.class_min_count
-            && g.count <= state.class_max_count
-        {
-            visible_count += 1;
-        }
+    let module_base = state.debug_base_addr;
+
+    ui.text("Search:");
+    ui.same_line();
+    ui.set_next_item_width(-60.0);
+    ui.input_text("##cls_search", &mut state.class_search).build();
+    ui.same_line();
+    if ui.button("Clear##clrsearch") {
+        state.class_search.clear();
     }
+    let search_lc = state.class_search.to_lowercase();
+    let search_active = !search_lc.is_empty();
+
+    let mut names: [Option<String>; crate::memory::CLASS_GROUP_COUNT] =
+        std::array::from_fn(|_| None);
+    let mut visible_count = 0i32;
+    for (i, g) in state.class_groups.iter().enumerate() {
+        if g.class_ptr == 0 { continue; }
+        if g.count < state.class_min_count || g.count > state.class_max_count {
+            continue;
+        }
+        let name = memory::get_class_name(module_base, g.class_ptr)
+            .unwrap_or_else(|| format!("0x{:X}", g.class_ptr));
+        if search_active && !name.to_lowercase().contains(&search_lc) {
+            continue;
+        }
+        names[i] = Some(name);
+        visible_count += 1;
+    }
+
     ui.text(format!(
         "Top Classes (showing {} of up to {} — click to toggle):",
         visible_count, state.class_groups.len()
     ));
 
-    let module_base = state.debug_base_addr;
     ui.child_window("##classlist")
         .size([0.0, 240.0])
         .build(|| {
             for i in 0..state.class_groups.len() {
+                let name = match names[i].take() {
+                    Some(n) => n,
+                    None => continue,
+                };
                 let g = state.class_groups[i];
-                if g.class_ptr == 0 { continue; }
-                if g.count < state.class_min_count || g.count > state.class_max_count {
-                    continue;
-                }
                 let selected = state.selected_classes.iter().any(|&c| c == g.class_ptr);
                 let mark = if selected { "[X]" } else { "[ ]" };
                 let player_mark = if g.class_ptr == state.debug_player_class { " (player)" } else { "" };
-                let name = memory::get_class_name(module_base, g.class_ptr)
-                    .unwrap_or_else(|| format!("0x{:X}", g.class_ptr));
                 let enemy_mark = if memory::is_enemy_class_name(&name) { " [enemy]" } else { "" };
                 let label = format!(
                     "{} {}  (0x{:X})  n={}{}{}##cls{}",
