@@ -36,8 +36,6 @@ pub struct ModState {
     pub class_max_count: i32,
     pub class_search: String,
 
-    pub esp_box_height_cm: f32,
-
     pub godmode_enabled: bool,
     pub debug_player_pawn: usize,
     pub debug_player_hp: i32,
@@ -55,6 +53,9 @@ pub struct ModState {
     pub debug_filter_num_elements_offset: usize,
     pub debug_filter_visited: i32,
     pub debug_filter_probe: [i32; 8],
+
+    pub debug_line_trace_ok: bool,
+    pub debug_line_trace_fn: usize,
 }
 
 impl ModState {
@@ -100,8 +101,6 @@ impl ModState {
             class_max_count: 100,
             class_search: String::new(),
 
-            esp_box_height_cm: 500.0,
-
             godmode_enabled: false,
             debug_player_pawn: 0,
             debug_player_hp: 0,
@@ -119,6 +118,9 @@ impl ModState {
             debug_filter_num_elements_offset: 0,
             debug_filter_visited: 0,
             debug_filter_probe: [0; 8],
+
+            debug_line_trace_ok: false,
+            debug_line_trace_fn: 0,
         }
     }
 }

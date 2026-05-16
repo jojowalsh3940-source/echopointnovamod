@@ -3,6 +3,7 @@ use std::sync::{Mutex, OnceLock};
 use crate::state::ModState;
 use crate::memory::{self, CameraChain};
 use crate::features::filter::{self, ClassFilter};
+use crate::features::raytrace;
 
 struct EnemyFilter {
     glbase_class: usize,
@@ -112,9 +113,6 @@ pub fn render_main_tab(ui: &Ui, state: &mut ModState) {
     ui.text("Max Distance (m):");
     ui.slider("##max_dist", 10.0, 1000.0, &mut state.esp_max_distance);
 
-    ui.text("Box Height (cm):");
-    ui.slider("##box_h", 60.0, 800.0, &mut state.esp_box_height_cm);
-
     ui.separator();
     ui.text("Visible Color:");
     ui.color_edit4("##esp_color_vis", &mut state.esp_color_visible);
@@ -210,11 +208,13 @@ fn project(view: &ProjView, world_pos: [f32; 3]) -> Option<([f32; 2], f32)> {
 
 pub fn draw_esp(ui: &Ui, state: &mut ModState) {
     memory::clear_region_cache();
-    memory::step_vis_cache();
 
     let base = memory::get_module_base();
     state.debug_base_addr = base;
     ensure_enemy_filter(base);
+    let line_trace_ready = raytrace::ensure_initialized(base);
+    state.debug_line_trace_ok = line_trace_ready;
+    state.debug_line_trace_fn = raytrace::line_trace_fn();
     if let Ok(f) = enemy_filter().lock() {
         state.debug_filter_glbase_class = f.glbase_class;
         state.debug_filter_human_class = f.human_class;
@@ -286,7 +286,8 @@ pub fn draw_esp(ui: &Ui, state: &mut ModState) {
     let max_dist_sq = max_dist_cm * max_dist_cm;
     let mut visible = 0i32;
 
-    state.debug_player_class = memory::get_player_pawn_class(camera.pc);
+    let player_pawn = memory::get_player_pawn(camera.pc);
+    state.debug_player_class = memory::get_actor_class(player_pawn);
 
     let mut groups: Vec<memory::ClassGroup> = Vec::with_capacity(64);
     let manual_filter_on = state.class_filter_active
@@ -303,6 +304,10 @@ pub fn draw_esp(ui: &Ui, state: &mut ModState) {
     let actor_ptrs = memory::actor_slice(&actors);
     for &actor in actor_ptrs {
         if actor == 0 { continue; }
+        // The Greylock player pawn is BP_Human_Player_C → ABP_GLHuman_C → AHuman
+        // (no AHumanPlayer in the chain), so it would classify as Enemy(Human).
+        // Skip by pawn pointer instead of relying on class.
+        if player_pawn != 0 && actor == player_pawn { continue; }
 
         let class_ptr = memory::get_actor_class(actor);
 
@@ -361,21 +366,22 @@ pub fn draw_esp(ui: &Ui, state: &mut ModState) {
         let dist = dist_sq.sqrt();
         visible += 1;
 
-        let actor_visible = if kind != memory::EnemyKind::None {
-            memory::is_actor_visible(actor)
+        let actor_visible = if kind != memory::EnemyKind::None && line_trace_ready {
+            let ignore = [player_pawn, actor];
+            raytrace::line_of_sight(world, view.cam_loc, loc, &ignore)
         } else {
             true
         };
         let color = if actor_visible { color_visible } else { color_invisible };
 
         if state.esp_show_box {
+            // Auto-size from the actor's capsule (root component). Fall back to a
+            // human-sized box when the read fails or the actor isn't a Character.
+            let (height_cm, width_cm) = memory::get_actor_capsule(actor)
+                .unwrap_or((180.0, 70.0));
             let pixels_per_cm = view.scale / depth;
-            let box_h = (state.esp_box_height_cm * pixels_per_cm).max(4.0);
-            let aspect = match kind {
-                memory::EnemyKind::Mech => 1.0,
-                _ => 0.4,
-            };
-            let box_w = (box_h * aspect).max(2.0);
+            let box_h = (height_cm * pixels_per_cm).max(4.0);
+            let box_w = (width_cm * pixels_per_cm).max(2.0);
             let half_w = box_w * 0.5;
             let half_h = box_h * 0.5;
             draw_list

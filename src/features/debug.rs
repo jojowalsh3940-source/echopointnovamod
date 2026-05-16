@@ -87,6 +87,14 @@ pub fn render_debug_tab(ui: &Ui, state: &mut ModState) {
     }
 
     ui.separator();
+    ui.text("Line Trace (visibility):");
+    let lt_color = if state.debug_line_trace_ok { grn } else { red };
+    ui.text_colored(lt_color, format!(
+        "Init: {}", if state.debug_line_trace_ok { "OK" } else { "PENDING/FAILED" }
+    ));
+    line(ui, "LineTraceSingle:", state.debug_line_trace_fn);
+
+    ui.separator();
     ui.text("Class Filter:");
     ui.checkbox("Manual class filter active", &mut state.class_filter_active);
     ui.text(format!("Player Pawn Class: 0x{:X}", state.debug_player_class));
